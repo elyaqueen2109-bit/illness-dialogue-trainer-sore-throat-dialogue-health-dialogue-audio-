@@ -170,6 +170,19 @@
         .stats { background: #fff2e6; padding: 12px 24px; border-radius: 60px; display: flex; justify-content: space-between; margin-top: 20px; font-weight: 700; }
         footer { text-align: center; color: #b45309; margin-top: 30px; font-size: 0.85rem; }
         @media (max-width: 700px) { .tab-btn { padding: 8px 16px; font-size: 0.75rem; } .avatar, .big-avatar { width: 48px; height: 48px; } .current-phrase { font-size: 1rem; } }
+        .double-input {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .double-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 40px;
+            border: 2px solid #f97316;
+            background: #fff7ed;
+        }
     </style>
 </head>
 <body>
@@ -208,7 +221,7 @@
         { speaker: "Tina", text: "Thanks. Bye." }
     ];
 
-    // ---------- VOICE: разный pitch на телефонах ----------
+    // ---------- VOICE ----------
     let maleVoice = null, femaleVoice = null, voicesReady = false;
     function initVoices() {
         return new Promise((resolve) => {
@@ -217,23 +230,15 @@
                 if (voices.length) {
                     assignVoices(voices);
                     resolve();
-                } else {
-                    setTimeout(sync, 50);
-                }
+                } else { setTimeout(sync, 50); }
             };
             sync();
-            window.speechSynthesis.onvoiceschanged = () => {
-                const voices = window.speechSynthesis.getVoices();
-                if (voices.length) assignVoices(voices);
-                resolve();
-            };
+            window.speechSynthesis.onvoiceschanged = () => { const v = window.speechSynthesis.getVoices(); if(v.length) assignVoices(v); resolve(); };
         });
     }
     function assignVoices(voices) {
-        // Ищем мужской и женский (по возможности)
         maleVoice = voices.find(v => v.name.includes("Google UK English Male") || v.name.includes("Microsoft Mark") || v.name.toLowerCase().includes("male")) || null;
         femaleVoice = voices.find(v => v.name.includes("Google UK English Female") || v.name.includes("Microsoft Zira") || v.name.toLowerCase().includes("female")) || null;
-        // Если не нашли, берём любой английский, но потом будем различать pitch
         if (!maleVoice) maleVoice = voices.find(v => v.lang.startsWith("en"));
         if (!femaleVoice) femaleVoice = maleVoice;
         voicesReady = true;
@@ -243,46 +248,31 @@
         if (!voicesReady) { setTimeout(() => speakText(text, speaker), 100); return; }
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = 'en-GB';
-        utter.rate = 0.9;
-        if (speaker === 'Mark') {
-            if (maleVoice) utter.voice = maleVoice;
-            utter.pitch = 0.8;   // ниже для мужского
-        } else {
-            if (femaleVoice) utter.voice = femaleVoice;
-            utter.pitch = 1.2;   // выше для женского
-        }
+        utter.lang = 'en-GB'; utter.rate = 0.9;
+        if (speaker === 'Mark') { if (maleVoice) utter.voice = maleVoice; utter.pitch = 0.8; }
+        else { if (femaleVoice) utter.voice = femaleVoice; utter.pitch = 1.2; }
         window.speechSynthesis.speak(utter);
     }
 
-    // ---------- ПУЛЬСАЦИЯ ВО ВРЕМЯ ПОЛНОГО ДИАЛОГА ----------
+    // ---------- ПУЛЬСАЦИЯ ----------
     let currentPulse = null;
     function clearPulse() { if (currentPulse) { currentPulse.classList.remove('pulse-avatar'); currentPulse = null; } }
     function pulseByIndex(idx) {
         clearPulse();
         const line = document.querySelector(`#tab0 .dialogue-line[data-index='${idx}']`);
-        if (line) {
-            const av = line.querySelector('.avatar');
-            if (av) { av.classList.add('pulse-avatar'); currentPulse = av; }
-        }
+        if (line) { const av = line.querySelector('.avatar'); if (av) { av.classList.add('pulse-avatar'); currentPulse = av; } }
     }
     function speakFullDialogue() {
         if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
-        clearPulse();
+        window.speechSynthesis.cancel(); clearPulse();
         let idx = 0;
         function next() {
             if (idx >= mergedDialogue.length) { clearPulse(); return; }
             pulseByIndex(idx);
             const utter = new SpeechSynthesisUtterance(mergedDialogue[idx].text);
             utter.lang = 'en-GB'; utter.rate = 0.9;
-            if (mergedDialogue[idx].speaker === 'Mark') {
-                if (maleVoice) utter.voice = maleVoice;
-                utter.pitch = 0.8;
-            } else {
-                if (femaleVoice) utter.voice = femaleVoice;
-                utter.pitch = 1.2;
-            }
+            if (mergedDialogue[idx].speaker === 'Mark') { if (maleVoice) utter.voice = maleVoice; utter.pitch = 0.8; }
+            else { if (femaleVoice) utter.voice = femaleVoice; utter.pitch = 1.2; }
             utter.onend = () => { idx++; next(); };
             utter.onerror = () => { idx++; next(); };
             window.speechSynthesis.speak(utter);
@@ -299,63 +289,42 @@
             const div = document.createElement('div');
             div.className = 'dialogue-line';
             div.setAttribute('data-index', i);
-            div.innerHTML = `
-                <div class="speaker-name">
-                    <img src="${avFile}" class="avatar" onerror="this.style.display='none'">
-                    ${line.speaker}:
-                </div>
-                <div class="line-text">${line.text}</div>
-                <button class="listen-icon" data-line="${i}" data-speaker="${line.speaker}">🔊</button>
-            `;
+            div.innerHTML = `<div class="speaker-name"><img src="${avFile}" class="avatar" onerror="this.style.display='none'"> ${line.speaker}:</div><div class="line-text">${line.text}</div><button class="listen-icon" data-line="${i}" data-speaker="${line.speaker}">🔊</button>`;
             container.appendChild(div);
         });
         document.querySelectorAll('#tab0 .listen-icon').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const idx = parseInt(btn.getAttribute('data-line'));
-                const sp = btn.getAttribute('data-speaker');
-                speakText(mergedDialogue[idx].text, sp);
-            });
+            btn.addEventListener('click', () => { const idx = parseInt(btn.getAttribute('data-line')); const sp = btn.getAttribute('data-speaker'); speakText(mergedDialogue[idx].text, sp); });
         });
     }
 
-    // ---------- УПРАЖНЕНИЕ 1: PUT IN ORDER (drag & drop) ----------
+    // ---------- УПРАЖНЕНИЕ 1: PUT IN ORDER ----------
     const correctFull = mergedDialogue.map(l => `${l.speaker}: ${l.text}`);
     let sortable = null;
     function renderSortable() {
         const container = document.getElementById('sortableContainer');
         container.innerHTML = '';
         const shuffled = [...correctFull];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
+        for (let i = shuffled.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
         shuffled.forEach(line => {
-            const speaker = line.startsWith('Mark') ? 'Mark' : 'Tina';
-            const avFile = speaker === 'Mark' ? 'mark.png' : 'tina.png';
-            const div = document.createElement('div');
-            div.className = 'sortable-item';
+            const speaker = line.startsWith('Mark')?'Mark':'Tina';
+            const avFile = speaker==='Mark'?'mark.png':'tina.png';
+            const div = document.createElement('div'); div.className='sortable-item';
             div.innerHTML = `<img src="${avFile}" class="sortable-avatar" onerror="this.style.display='none'"><span class="sortable-text">${line}</span>`;
             container.appendChild(div);
         });
         if (sortable) sortable.destroy();
-        sortable = new Sortable(container, { animation: 200, handle: '.sortable-item', ghostClass: 'dragging' });
+        sortable = new Sortable(container, { animation:200, handle:'.sortable-item', ghostClass:'dragging' });
     }
     function checkOrder() {
         const items = document.querySelectorAll('#sortableContainer .sortable-item');
         const current = Array.from(items).map(item => item.querySelector('.sortable-text').innerText.trim());
         let ok = true;
-        for (let i = 0; i < correctFull.length; i++) {
-            if (current[i] !== correctFull[i]) { ok = false; break; }
-        }
+        for (let i=0; i<correctFull.length; i++) if (current[i] !== correctFull[i]) { ok=false; break; }
         document.getElementById('orderResult').innerHTML = ok ? '✅ Perfect order!' : '❌ Not yet. Drag the lines into the correct order.';
     }
-    function showOrderAnswer() {
-        let html = '<strong>Correct order (top to bottom):</strong><br>';
-        correctFull.forEach((l, i) => html += `${i+1}. ${l}<br>`);
-        document.getElementById('orderResult').innerHTML = html;
-    }
+    function showOrderAnswer() { let html='<strong>Correct order (top to bottom):</strong><br>'; correctFull.forEach((l,i)=>html+=`${i+1}. ${l}<br>`); document.getElementById('orderResult').innerHTML=html; }
 
-    // ---------- УПРАЖНЕНИЕ 2: WHO SAID IT (рандомный порядок) ----------
+    // ---------- УПРАЖНЕНИЕ 2: WHO SAID IT ----------
     const allLines = [
         { text: "Hi Tina. I’m phoning you because I can’t come to play the new computer game today.", speaker: "Mark" },
         { text: "I feel terrible.", speaker: "Mark" },
@@ -371,34 +340,20 @@
     let shuffledSpeaker = [], origIdx = [], selectedSpeakers = [];
     function shuffleSpeakerItems() {
         const indices = [...Array(allLines.length).keys()];
-        for (let i = indices.length-1; i>0; i--) {
-            const j = Math.floor(Math.random()*(i+1));
-            [indices[i], indices[j]] = [indices[j], indices[i]];
-        }
-        origIdx = indices;
-        shuffledSpeaker = indices.map(i => allLines[i]);
-        selectedSpeakers = new Array(allLines.length).fill(null);
+        for (let i=indices.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [indices[i], indices[j]] = [indices[j], indices[i]]; }
+        origIdx = indices; shuffledSpeaker = indices.map(i=>allLines[i]); selectedSpeakers = new Array(allLines.length).fill(null);
     }
     function renderSpeaker() {
         shuffleSpeakerItems();
-        const container = document.getElementById('speakerContainer');
-        container.innerHTML = '';
+        const c = document.getElementById('speakerContainer'); c.innerHTML='';
         shuffledSpeaker.forEach((item, idx) => {
-            const div = document.createElement('div');
-            div.className = 'phrase-item';
-            div.innerHTML = `
-                <span class="phrase-text">“${item.text}”</span>
-                <div class="speaker-choice" id="choice-${idx}">
-                    <img src="mark.png" class="speaker-avatar" data-spk="Mark" data-idx="${idx}" onerror="this.style.display='none'">
-                    <img src="tina.png" class="speaker-avatar" data-spk="Tina" data-idx="${idx}" onerror="this.style.display='none'">
-                </div>
-            `;
-            container.appendChild(div);
+            const div = document.createElement('div'); div.className='phrase-item';
+            div.innerHTML = `<span class="phrase-text">“${item.text}”</span><div class="speaker-choice" id="choice-${idx}"><img src="mark.png" class="speaker-avatar" data-spk="Mark" data-idx="${idx}" onerror="this.style.display='none'"><img src="tina.png" class="speaker-avatar" data-spk="Tina" data-idx="${idx}" onerror="this.style.display='none'"></div>`;
+            c.appendChild(div);
         });
         document.querySelectorAll('.speaker-avatar').forEach(img => {
             img.addEventListener('click', () => {
-                const idx = parseInt(img.getAttribute('data-idx'));
-                const spk = img.getAttribute('data-spk');
+                const idx = parseInt(img.getAttribute('data-idx')); const spk = img.getAttribute('data-spk');
                 selectedSpeakers[idx] = spk;
                 const parent = document.getElementById(`choice-${idx}`);
                 parent.querySelectorAll('.speaker-avatar').forEach(im => im.classList.remove('selected'));
@@ -406,51 +361,99 @@
             });
         });
     }
-    function checkSpeaker() {
-        let correct = 0;
-        for (let i=0; i<shuffledSpeaker.length; i++) {
-            const correctSp = allLines[origIdx[i]].speaker;
-            if (selectedSpeakers[i] === correctSp) correct++;
-        }
-        document.getElementById('speakerResult').innerHTML = `✅ ${correct}/${shuffledSpeaker.length} correct.`;
+    function checkSpeaker() { let correct=0; for(let i=0;i<shuffledSpeaker.length;i++) if(selectedSpeakers[i]===allLines[origIdx[i]].speaker) correct++; document.getElementById('speakerResult').innerHTML=`✅ ${correct}/${shuffledSpeaker.length} correct.`; }
+    function showSpeakerAnswer() { let ans=''; for(let i=0;i<shuffledSpeaker.length;i++) ans+=`${i+1}. “${shuffledSpeaker[i].text}” → ${allLines[origIdx[i]].speaker}<br>`; document.getElementById('speakerResult').innerHTML=ans; }
+
+    // ---------- УПРАЖНЕНИЕ 3: FILL IN THE GAPS (исправлено: 7 элементов, пятый с двумя полями) ----------
+    // Новый массив gapItems: удалён элемент "I’ve got a ______." (бывший индекс 5), остальные сдвинуты.
+    // Элемент с двумя пропусками – оригинальный "I’m ______ because I’ve got a ______." теперь индекс 4.
+    const gapItems = [
+        { text: "I feel ______.", correct: ["terrible"] },
+        { text: "I’ve got a sore ______.", correct: ["throat"] },
+        { text: "I’m ______ all the time.", correct: ["coughing"] },
+        { text: "because I ______ bad too.", correct: ["feel"] },
+        { text: "I’m ______ because I’ve got a ______.", correct: ["hot", "temperature"] },  // два пропуска
+        { text: "I’m going to ______ lots of tea with honey.", correct: ["drink"] },
+        { text: "I’m going to ______ to bed and sleep.", correct: ["go"] }
+    ];
+    function renderGaps() {
+        const container = document.getElementById('gapContainer');
+        container.innerHTML = '';
+        gapItems.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'phrase-item';
+            if (idx === 4) { // два пропуска
+                div.innerHTML = `<span class="phrase-text">${item.text}</span><div class="double-input"><input type="text" id="gap_${idx}_0" placeholder="word 1"><input type="text" id="gap_${idx}_1" placeholder="word 2"></div>`;
+            } else {
+                div.innerHTML = `<span class="phrase-text">${item.text}</span><input type="text" id="gap_${idx}" placeholder="word" style="border-radius:40px; border:2px solid #f97316; padding:8px 16px;">`;
+            }
+            container.appendChild(div);
+        });
     }
-    function showSpeakerAnswer() {
-        let ans = '';
-        for (let i=0; i<shuffledSpeaker.length; i++) {
-            const correctSp = allLines[origIdx[i]].speaker;
-            ans += `${i+1}. “${shuffledSpeaker[i].text}” → ${correctSp}<br>`;
+    function checkGaps() {
+        let correctCount = 0;
+        for (let i=0; i<gapItems.length; i++) {
+            if (i === 4) {
+                const val1 = document.getElementById(`gap_4_0`)?.value.trim().toLowerCase();
+                const val2 = document.getElementById(`gap_4_1`)?.value.trim().toLowerCase();
+                if (val1 === gapItems[i].correct[0] && val2 === gapItems[i].correct[1]) correctCount++;
+            } else {
+                const inp = document.getElementById(`gap_${i}`);
+                if (inp && inp.value.trim().toLowerCase() === gapItems[i].correct[0]) correctCount++;
+            }
         }
-        document.getElementById('speakerResult').innerHTML = ans;
+        document.getElementById('gapResult').innerHTML = `✅ ${correctCount}/${gapItems.length} correct.`;
+    }
+    function showGapAnswer() {
+        let ans = '';
+        gapItems.forEach((g,i) => {
+            if (i === 4) ans += `${i+1}. ${g.text} → ${g.correct[0]} / ${g.correct[1]}<br>`;
+            else ans += `${i+1}. ${g.text} → ${g.correct[0]}<br>`;
+        });
+        document.getElementById('gapResult').innerHTML = ans;
     }
 
-    // ---------- ОСТАЛЬНЫЕ УПРАЖНЕНИЯ (без изменений) ----------
-    const gapItems = [
-        { text: "I feel ______.", correct: "terrible" }, { text: "I’ve got a sore ______.", correct: "throat" },
-        { text: "I’m ______ all the time.", correct: "coughing" }, { text: "because I ______ bad too.", correct: "feel" },
-        { text: "I’m ______ because I’ve got a ______.", correct: "hot" }, { text: "I’ve got a ______.", correct: "temperature" },
-        { text: "I’m going to ______ lots of tea with honey.", correct: "drink" }, { text: "I’m going to ______ to bed and sleep.", correct: "go" }
-    ];
-    function renderGaps() { const c=document.getElementById('gapContainer'); c.innerHTML=''; gapItems.forEach((g,i)=>{ let d=document.createElement('div'); d.className='phrase-item'; d.innerHTML=`<span class="phrase-text">${g.text}</span><input type="text" id="gap_${i}" placeholder="word" style="border-radius:40px; border:2px solid #f97316; padding:8px 16px;">`; c.appendChild(d); }); }
-    function checkGaps(){ let c=0; gapItems.forEach((g,i)=>{ let inp=document.getElementById(`gap_${i}`); if(inp && inp.value.trim().toLowerCase()===g.correct.toLowerCase()) c++; }); document.getElementById('gapResult').innerHTML=`✅ ${c}/${gapItems.length} correct.`; }
-    function showGapAnswer(){ let a=''; gapItems.forEach((g,i)=>a+=`${i+1}. → ${g.correct}<br>`); document.getElementById('gapResult').innerHTML=a; }
+    // ---------- УПРАЖНЕНИЕ 4: TRUE/FALSE (исправлено: Mark wants to play a computer game -> false) ----------
     const tfItems = [
-        { statement: "Mark wants to play a computer game.", correct: true }, { statement: "Mark has a headache.", correct: false },
-        { statement: "Tina feels bad too.", correct: true }, { statement: "Tina has a cough.", correct: false },
-        { statement: "Mark is going to drink tea with honey.", correct: true }, { statement: "Tina is going to drink tea.", correct: false },
+        { statement: "Mark wants to play a computer game.", correct: false },
+        { statement: "Mark has a headache.", correct: false },
+        { statement: "Tina feels bad too.", correct: true },
+        { statement: "Tina has a cough.", correct: false },
+        { statement: "Mark is going to drink tea with honey.", correct: true },
+        { statement: "Tina is going to drink tea.", correct: false },
         { statement: "Mark says 'Sleep well'.", correct: true }
     ];
     function renderTF() { const c=document.getElementById('tfContainer'); c.innerHTML=''; tfItems.forEach((t,i)=>{ let d=document.createElement('div'); d.className='phrase-item'; d.innerHTML=`<span class="phrase-text">${t.statement}</span><div class="radio-group"><label><input type="radio" name="tf_${i}" value="true"> ✅ True</label><label><input type="radio" name="tf_${i}" value="false"> ❌ False</label></div>`; c.appendChild(d); }); }
     function checkTF(){ let c=0; tfItems.forEach((t,i)=>{ let sel=document.querySelector(`input[name="tf_${i}"]:checked`); if(sel && ((sel.value==='true')===t.correct)) c++; }); document.getElementById('tfResult').innerHTML=`✅ ${c}/${tfItems.length} correct.`; }
     function showTFAnswer(){ let a=''; tfItems.forEach((t,i)=>a+=`${i+1}. ${t.statement} → ${t.correct?'True':'False'}<br>`); document.getElementById('tfResult').innerHTML=a; }
+
+    // ---------- УПРАЖНЕНИЕ 5: TRANSLATE (гибкое сравнение) ----------
     const transItems = [
-        { ru: "Я чувствую себя ужасно.", en: "I feel terrible." }, { ru: "У меня болит горло.", en: "I’ve got a sore throat." },
-        { ru: "Я постоянно кашляю.", en: "I’m coughing all the time." }, { ru: "Я чувствую себя тоже плохо.", en: "I feel bad too." },
+        { ru: "Я чувствую себя ужасно.", en: "I feel terrible." },
+        { ru: "У меня болит горло.", en: "I’ve got a sore throat." },
+        { ru: "Я постоянно кашляю.", en: "I’m coughing all the time." },
+        { ru: "Я чувствую себя тоже плохо.", en: "I feel bad too." },
         { ru: "Мне жарко, потому что у меня температура.", en: "I’m hot because I’ve got a temperature." },
         { ru: "Я собираюсь выпить много чая с мёдом.", en: "I’m going to drink lots of tea with honey." },
-        { ru: "Я собираюсь лечь в постель и поспать.", en: "I’m going to go to bed and sleep." }, { ru: "Спокойной ночи.", en: "Sleep well." }
+        { ru: "Я собираюсь лечь в постель и поспать.", en: "I’m going to go to bed and sleep." },
+        { ru: "Спокойной ночи.", en: "Sleep well." }
     ];
+    function normalizeForCompare(s) {
+        return s.toLowerCase()
+            .replace(/[.,!?;:'"“”‘’]/g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/i'm/g, 'i am')
+            .replace(/i've got/g, 'i have')
+            .replace(/i have got/g, 'i have')
+            .replace(/i've/g, 'i have')
+            .replace(/can't/g, 'cannot')
+            .replace(/i’m/g, 'i am')
+            .replace(/i’ve/g, 'i have')
+            .replace(/’/g, '')
+            .trim();
+    }
     function renderTrans() { const c=document.getElementById('transContainer'); c.innerHTML=''; transItems.forEach((t,i)=>{ let d=document.createElement('div'); d.className='phrase-item'; d.style.flexWrap='wrap'; d.innerHTML=`<span style="font-weight:600; min-width:180px;">🇷🇺 ${t.ru}</span><input type="text" id="trans_${i}" placeholder="English sentence" style="flex:2; padding:8px 16px; border-radius:40px; border:2px solid #f97316;">`; c.appendChild(d); }); }
-    function checkTrans(){ let c=0; transItems.forEach((t,i)=>{ let user=document.getElementById(`trans_${i}`).value.trim().toLowerCase().replace(/[.,!?]/g,''); let corr=t.en.toLowerCase().replace(/[.,!?]/g,''); if(user===corr) c++; }); document.getElementById('transResult').innerHTML=`✅ ${c}/${transItems.length} correct.`; }
+    function checkTrans() { let correct=0; transItems.forEach((item,idx)=>{ const user=document.getElementById(`trans_${idx}`).value.trim(); if(normalizeForCompare(user)===normalizeForCompare(item.en)) correct++; }); document.getElementById('transResult').innerHTML=`✅ ${correct}/${transItems.length} correct.`; }
     function showTransAnswer(){ let a=''; transItems.forEach((t,i)=>a+=`${i+1}. ${t.en}<br>`); document.getElementById('transResult').innerHTML=a; }
 
     // ---------- УПРАЖНЕНИЕ 6: NEXT LINE ----------
